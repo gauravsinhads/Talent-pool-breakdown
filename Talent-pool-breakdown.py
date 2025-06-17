@@ -44,7 +44,7 @@ if tp is not None:
         'TalkScore Retake', 'Unresponsive Talkscore Retake', 'Failed TalkScore', 'Cold Leads',
         'Cold Leads Talkscore', 'Cold Leads Talkscore Retake', 'On hold', 'Rejected',
         'Talent Pool', 'Shortlisted', 'Hired', 'Candidate Databank', 'For Talkscore',
-        'Tier 2 Program', 'Tier 1 Program', 'For Versant', 'For Reengagement',
+        'Tier 2 Program', 'Tier 1 Program', 'For Versant', 'For Reengagement'
     ]
 
     # --- Filters Section ---
@@ -113,6 +113,15 @@ if tp is not None:
         (tp['CAMPAIGN_SITE'].isin(selected_sites)) &
         (tp['CAMPAIGNTITLE'].isin(selected_titles))
     ]
+    
+    # --- Download Button for Filtered Data ---
+    st.download_button(
+       label="Download Filtered Data as CSV",
+       data=filtered_tp.to_csv(index=False).encode('utf-8'),
+       file_name='filtered_talentpool_data.csv',
+       mime='text/csv',
+    )
+    st.divider()
 
     # --- Data Analysis ---
     if not filtered_tp.empty:
