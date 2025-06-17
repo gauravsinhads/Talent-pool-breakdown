@@ -44,7 +44,7 @@ if tp is not None:
         'TalkScore Retake', 'Unresponsive Talkscore Retake', 'Failed TalkScore', 'Cold Leads',
         'Cold Leads Talkscore', 'Cold Leads Talkscore Retake', 'On hold', 'Rejected',
         'Talent Pool', 'Shortlisted', 'Hired', 'Candidate Databank', 'For Talkscore',
-        'Tier 2 Program', 'Tier 1 Program', 'For Versant', 'For Reengagement',' '
+        'Tier 2 Program', 'Tier 1 Program', 'For Versant', 'For Reengagement', None
     ]
 
     # --- Filters Section ---
