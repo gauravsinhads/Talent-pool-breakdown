@@ -47,39 +47,48 @@ if tp is not None:
         'Tier 2 Program', 'Tier 1 Program', 'For Versant', 'For Reengagement'
     ]
 
-    # --- Filters Expander ---
-    with st.expander("Filter Options"):
-        # Filter 1: Date range for 'INVITATIONDT'
-        min_date = tp['INVITATIONDT'].min().date()
-        max_date = tp['INVITATIONDT'].max().date()
-        start_date, end_date = st.date_input(
-            "Invitation Date Range",
-            [min_date, max_date],
-            min_value=min_date,
-            max_value=max_date
-        )
+    # --- Filters Section ---
+    st.header("Filters")
+    
+    # Filter 1: Date range for 'INVITATIONDT'
+    min_date = tp['INVITATIONDT'].min().date()
+    max_date = tp['INVITATIONDT'].max().date()
+    start_date, end_date = st.date_input(
+        "Invitation Date Range",
+        [min_date, max_date],
+        min_value=min_date,
+        max_value=max_date
+    )
+    st.divider()
 
-        # Filter 2: Multiselect dropdown for 'CAMPAIGN_SITE'
-        all_sites = tp['CAMPAIGN_SITE'].dropna().unique()
+    # Filter 2: Expander for 'CAMPAIGN_SITE'
+    with st.expander("Select Campaign Site(s)"):
+        unique_sites = sorted(tp['CAMPAIGN_SITE'].dropna().unique())
         selected_sites = st.multiselect(
-            "Campaign Site",
-            all_sites,
-            default=all_sites
+            "Campaign Site", 
+            options=unique_sites, 
+            default=unique_sites,
+            label_visibility="collapsed" # Hides the label as it's in the expander title
         )
+    st.divider()
 
-        # Filter 3: Dependent multiselect for 'CAMPAIGNTITLE'
-        # Options for campaign titles are dependent on the selected campaign sites
-        if selected_sites:
-            available_titles = tp[tp['CAMPAIGN_SITE'].isin(selected_sites)]['CAMPAIGNTITLE'].dropna().unique()
+    # Filter 3: Dependent Expander for 'CAMPAIGNTITLE'
+    with st.expander("Select Campaign Title(s)"):
+        if not selected_sites:
+            # If no sites are selected, show all titles but disabled
+            available_titles = []
+            st.warning("Please select a Campaign Site to see available titles.")
+            selected_titles = []
         else:
-            available_titles = tp['CAMPAIGNTITLE'].dropna().unique()
-
-        selected_titles = st.multiselect(
-            "Campaign Title",
-            available_titles,
-            default=available_titles
-        )
-
+            # Options for campaign titles are dependent on the selected campaign sites
+            available_titles = sorted(tp[tp['CAMPAIGN_SITE'].isin(selected_sites)]['CAMPAIGNTITLE'].dropna().unique())
+            selected_titles = st.multiselect(
+                "Campaign Title", 
+                options=available_titles, 
+                default=available_titles,
+                label_visibility="collapsed" # Hides the label
+            )
+    st.divider()
 
     # --- Data Filtering Logic ---
     # Apply filters to the dataframe
@@ -100,25 +109,18 @@ if tp is not None:
         latest_activity = filtered_tp.loc[filtered_tp.groupby('CAMPAIGNINVITATIONID')['ACTIVITY_CREATED_AT'].idxmax()].copy()
 
         # --- Optimized check for client folder history ---
-        # This vectorized approach is much faster than applying a function row-by-row.
-        # 1. Identify all activities involving a client folder (i.e., not in SYSTEM_FOLDERS).
         client_folder_activity_mask = (
             ~filtered_tp['FOLDER_FROM_TITLE'].isin(SYSTEM_FOLDERS) |
             ~filtered_tp['FOLDER_TO_TITLE'].isin(SYSTEM_FOLDERS)
         )
-        # 2. Get the unique IDs of candidates who have had at least one such activity.
         ids_with_client_folder_history = filtered_tp.loc[client_folder_activity_mask, 'CAMPAIGNINVITATIONID'].unique()
-
-        # 3. Create the 'in_client_folder' column by checking if an ID is in our list.
         latest_activity['in_client_folder'] = latest_activity['CAMPAIGNINVITATIONID'].isin(ids_with_client_folder_history)
-
 
         # --- Categorize Candidates ---
         # 1. New (for endorsement)
         new_endorsement = latest_activity[
             (latest_activity['FOLDER_TO_TITLE'] == 'Talent Pool') &
             (latest_activity['in_client_folder'] == False) &
-            (latest_activity['FOLDER_TO_TITLE'] != 'Candidate Databank') &
             (latest_activity['FAILED_REASON'].isnull())
         ]
 
@@ -155,34 +157,34 @@ if tp is not None:
                 return "31+ days"
 
         # Apply time bucketing
-        new_endorsement['time_bucket'] = new_endorsement['ACTIVITY_CREATED_AT'].apply(get_time_bucket)
-        rejected_waterfall['time_bucket'] = rejected_waterfall['ACTIVITY_CREATED_AT'].apply(get_time_bucket)
-        candidate_databank['time_bucket'] = candidate_databank['ACTIVITY_CREATED_AT'].apply(get_time_bucket)
+        if not new_endorsement.empty:
+            new_endorsement['time_bucket'] = new_endorsement['ACTIVITY_CREATED_AT'].apply(get_time_bucket)
+        if not rejected_waterfall.empty:
+            rejected_waterfall['time_bucket'] = rejected_waterfall['ACTIVITY_CREATED_AT'].apply(get_time_bucket)
+        if not candidate_databank.empty:
+            candidate_databank['time_bucket'] = candidate_databank['ACTIVITY_CREATED_AT'].apply(get_time_bucket)
 
         # --- Create Pivot Table ---
         time_categories = ["<24hrs", "1-3 days", "4-7 days", "8-15 days", "16-30 days", "31+ days"]
         
-        # Function to create a pivot series for a given dataframe
         def create_pivot_series(df, name):
+            if df.empty:
+                return pd.Series([0] * len(time_categories), index=time_categories, name=name)
             series = df.groupby('time_bucket')['CAMPAIGNINVITATIONID'].nunique().reindex(time_categories, fill_value=0)
             series.name = name
             return series
 
-        # Create series for each category
         pivot_new = create_pivot_series(new_endorsement, 'New (for endorsement)')
         pivot_rejected = create_pivot_series(rejected_waterfall, 'Rejected (for waterfall)')
         pivot_databank = create_pivot_series(candidate_databank, 'Candidate Databank (in Cooling Period)')
 
-        # Combine into a final DataFrame
         pivot_table = pd.DataFrame([pivot_new, pivot_rejected, pivot_databank])
 
-        # Add Grand Totals
         pivot_table['Grand Total'] = pivot_table.sum(axis=1)
         pivot_table.loc['Grand Total'] = pivot_table.sum(axis=0)
 
-        # Display the pivot table
         st.header("Talent Pool Breakdown")
-        st.dataframe(pivot_table.style.format("{:.0f}")) # Format to show integers
+        st.dataframe(pivot_table.style.format("{:.0f}"))
 
     else:
         st.warning("No data available for the selected filters.")
