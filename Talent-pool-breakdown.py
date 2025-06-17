@@ -53,9 +53,17 @@ if tp is not None:
     # Filter 1: Date range for 'INVITATIONDT'
     min_date = tp['INVITATIONDT'].min().date()
     max_date = tp['INVITATIONDT'].max().date()
+    
+    # Calculate the default start date as 30 days ago from today
+    default_start_date = datetime.now().date() - timedelta(days=30)
+
+    # Ensure the default start date is not before the earliest date in the data
+    if default_start_date < min_date:
+        default_start_date = min_date
+
     start_date, end_date = st.date_input(
         "Invitation Date Range",
-        [min_date, max_date],
+        [default_start_date, max_date],
         min_value=min_date,
         max_value=max_date
     )
