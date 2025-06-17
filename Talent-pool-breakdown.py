@@ -97,23 +97,21 @@ if tp is not None:
     # --- Data Analysis ---
     if not filtered_tp.empty:
         # Get the latest activity for each campaign invitation
-        latest_activity = filtered_tp.loc[filtered_tp.groupby('CAMPAIGNINVITATIONID')['ACTIVITY_CREATED_AT'].idxmax()]
+        latest_activity = filtered_tp.loc[filtered_tp.groupby('CAMPAIGNINVITATIONID')['ACTIVITY_CREATED_AT'].idxmax()].copy()
 
-        # Determine if a candidate has ever been in a client folder
-        def has_been_in_client_folder(invitation_id, df):
-            """Checks if an invitation ID has history in any client folder."""
-            candidate_history = df[df['CAMPAIGNINVITATIONID'] == invitation_id]
-            # Check both 'from' and 'to' folders that are not in SYSTEM_FOLDERS
-            in_client_folder = candidate_history[
-                ~candidate_history['FOLDER_FROM_TITLE'].isin(SYSTEM_FOLDERS) |
-                ~candidate_history['FOLDER_TO_TITLE'].isin(SYSTEM_FOLDERS)
-            ].shape[0] > 0
-            return in_client_folder
-
-        # Apply the check to each unique invitation ID in the latest activity log
-        latest_activity['in_client_folder'] = latest_activity['CAMPAIGNINVITATIONID'].apply(
-            lambda x: has_been_in_client_folder(x, filtered_tp)
+        # --- Optimized check for client folder history ---
+        # This vectorized approach is much faster than applying a function row-by-row.
+        # 1. Identify all activities involving a client folder (i.e., not in SYSTEM_FOLDERS).
+        client_folder_activity_mask = (
+            ~filtered_tp['FOLDER_FROM_TITLE'].isin(SYSTEM_FOLDERS) |
+            ~filtered_tp['FOLDER_TO_TITLE'].isin(SYSTEM_FOLDERS)
         )
+        # 2. Get the unique IDs of candidates who have had at least one such activity.
+        ids_with_client_folder_history = filtered_tp.loc[client_folder_activity_mask, 'CAMPAIGNINVITATIONID'].unique()
+
+        # 3. Create the 'in_client_folder' column by checking if an ID is in our list.
+        latest_activity['in_client_folder'] = latest_activity['CAMPAIGNINVITATIONID'].isin(ids_with_client_folder_history)
+
 
         # --- Categorize Candidates ---
         # 1. New (for endorsement)
@@ -191,4 +189,3 @@ if tp is not None:
 
 else:
     st.info("Data could not be loaded. Please check the file path and format.")
-
