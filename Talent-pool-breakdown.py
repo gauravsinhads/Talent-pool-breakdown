@@ -126,7 +126,7 @@ if tp is not None:
         latest_activity['in_client_folder'] = latest_activity['CAMPAIGNINVITATIONID'].isin(ids_with_client_folder_history)
 
         new_endorsement = latest_activity[
-            (latest_activity['FOLDER_TO_TITLE'] == 'Talent Pool') &
+            (latest_activity['FOLDER'] == 'talent_pool') &
             (latest_activity['in_client_folder'] == False) &
             (latest_activity['FAILED_REASON'].isnull())
         ]
