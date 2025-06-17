@@ -107,10 +107,11 @@ if tp is not None:
     if not filtered_tp.empty:
         latest_activity = filtered_tp.loc[filtered_tp.groupby('CAMPAIGNINVITATIONID')['ACTIVITY_CREATED_AT'].idxmax()].copy()
 
-        client_folder_activity_mask = (
-            ~filtered_tp['FOLDER_FROM_TITLE'].isin(SYSTEM_FOLDERS) |
-            ~filtered_tp['FOLDER_TO_TITLE'].isin(SYSTEM_FOLDERS)
-        )
+        # A folder is a 'Client Folder' if it's not null/NaN and not in the SYSTEM_FOLDERS list.
+        from_is_client = (filtered_tp['FOLDER_FROM_TITLE'].notna()) & (~filtered_tp['FOLDER_FROM_TITLE'].isin(SYSTEM_FOLDERS))
+        to_is_client = (filtered_tp['FOLDER_TO_TITLE'].notna()) & (~filtered_tp['FOLDER_TO_TITLE'].isin(SYSTEM_FOLDERS))
+        client_folder_activity_mask = from_is_client | to_is_client
+
         ids_with_client_folder_history = filtered_tp.loc[client_folder_activity_mask, 'CAMPAIGNINVITATIONID'].unique()
         latest_activity['in_client_folder'] = latest_activity['CAMPAIGNINVITATIONID'].isin(ids_with_client_folder_history)
 
