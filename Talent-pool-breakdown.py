@@ -61,38 +61,41 @@ if tp is not None:
     )
     st.divider()
 
-    # Filter 2: Expander for 'CAMPAIGN_SITE'
+    # Filter 2: Expander for 'CAMPAIGN_SITE' with Select All
     with st.expander("Select Campaign Site(s)"):
         unique_sites = sorted(tp['CAMPAIGN_SITE'].dropna().unique())
+        select_all_sites = st.checkbox("Select All Sites", value=True)
+        
+        default_selection_sites = unique_sites if select_all_sites else []
+        
         selected_sites = st.multiselect(
             "Campaign Site", 
             options=unique_sites, 
-            default=unique_sites,
-            label_visibility="collapsed" # Hides the label as it's in the expander title
+            default=default_selection_sites,
+            label_visibility="collapsed"
         )
     st.divider()
 
-    # Filter 3: Dependent Expander for 'CAMPAIGNTITLE'
+    # Filter 3: Dependent Expander for 'CAMPAIGNTITLE' with Select All
     with st.expander("Select Campaign Title(s)"):
         if not selected_sites:
-            # If no sites are selected, show all titles but disabled
-            available_titles = []
             st.warning("Please select a Campaign Site to see available titles.")
             selected_titles = []
         else:
-            # Options for campaign titles are dependent on the selected campaign sites
             available_titles = sorted(tp[tp['CAMPAIGN_SITE'].isin(selected_sites)]['CAMPAIGNTITLE'].dropna().unique())
+            select_all_titles = st.checkbox("Select All Titles", value=True)
+            
+            default_selection_titles = available_titles if select_all_titles else []
+
             selected_titles = st.multiselect(
                 "Campaign Title", 
                 options=available_titles, 
-                default=available_titles,
-                label_visibility="collapsed" # Hides the label
+                default=default_selection_titles,
+                label_visibility="collapsed"
             )
     st.divider()
 
     # --- Data Filtering Logic ---
-    # Apply filters to the dataframe
-    # Convert start_date and end_date to datetime for comparison
     start_datetime = datetime.combine(start_date, datetime.min.time())
     end_datetime = datetime.combine(end_date, datetime.max.time())
 
@@ -105,10 +108,8 @@ if tp is not None:
 
     # --- Data Analysis ---
     if not filtered_tp.empty:
-        # Get the latest activity for each campaign invitation
         latest_activity = filtered_tp.loc[filtered_tp.groupby('CAMPAIGNINVITATIONID')['ACTIVITY_CREATED_AT'].idxmax()].copy()
 
-        # --- Optimized check for client folder history ---
         client_folder_activity_mask = (
             ~filtered_tp['FOLDER_FROM_TITLE'].isin(SYSTEM_FOLDERS) |
             ~filtered_tp['FOLDER_TO_TITLE'].isin(SYSTEM_FOLDERS)
@@ -116,59 +117,44 @@ if tp is not None:
         ids_with_client_folder_history = filtered_tp.loc[client_folder_activity_mask, 'CAMPAIGNINVITATIONID'].unique()
         latest_activity['in_client_folder'] = latest_activity['CAMPAIGNINVITATIONID'].isin(ids_with_client_folder_history)
 
-        # --- Categorize Candidates ---
-        # 1. New (for endorsement)
         new_endorsement = latest_activity[
             (latest_activity['FOLDER_TO_TITLE'] == 'Talent Pool') &
             (latest_activity['in_client_folder'] == False) &
             (latest_activity['FAILED_REASON'].isnull())
         ]
 
-        # 2. Rejected (for waterfall)
         rejected_waterfall = latest_activity[
             (latest_activity['in_client_folder'] == True) &
             (latest_activity['FOLDER_TO_TITLE'] != 'Candidate Databank') &
             (latest_activity['FAILED_REASON'].notnull())
         ]
 
-        # 3. Candidate Databank (in Cooling Period)
         candidate_databank = latest_activity[
             latest_activity['FOLDER_TO_TITLE'] == 'Candidate Databank'
         ]
 
-        # --- Time Bucketing ---
         def get_time_bucket(activity_date):
-            """Categorizes a date into predefined time buckets based on days from now."""
             now = datetime.now()
             delta = now - activity_date
             days = delta.days
+            if days < 1: return "<24hrs"
+            if 1 <= days <= 3: return "1-3 days"
+            if 4 <= days <= 7: return "4-7 days"
+            if 8 <= days <= 15: return "8-15 days"
+            if 16 <= days <= 30: return "16-30 days"
+            return "31+ days"
 
-            if days < 1:
-                return "<24hrs"
-            elif 1 <= days <= 3:
-                return "1-3 days"
-            elif 4 <= days <= 7:
-                return "4-7 days"
-            elif 8 <= days <= 15:
-                return "8-15 days"
-            elif 16 <= days <= 30:
-                return "16-30 days"
-            else: # days >= 31
-                return "31+ days"
-
-        # Apply time bucketing
         if not new_endorsement.empty:
-            new_endorsement['time_bucket'] = new_endorsement['ACTIVITY_CREATED_AT'].apply(get_time_bucket)
+            new_endorsement.loc[:, 'time_bucket'] = new_endorsement['ACTIVITY_CREATED_AT'].apply(get_time_bucket)
         if not rejected_waterfall.empty:
-            rejected_waterfall['time_bucket'] = rejected_waterfall['ACTIVITY_CREATED_AT'].apply(get_time_bucket)
+            rejected_waterfall.loc[:, 'time_bucket'] = rejected_waterfall['ACTIVITY_CREATED_AT'].apply(get_time_bucket)
         if not candidate_databank.empty:
-            candidate_databank['time_bucket'] = candidate_databank['ACTIVITY_CREATED_AT'].apply(get_time_bucket)
+            candidate_databank.loc[:, 'time_bucket'] = candidate_databank['ACTIVITY_CREATED_AT'].apply(get_time_bucket)
 
-        # --- Create Pivot Table ---
         time_categories = ["<24hrs", "1-3 days", "4-7 days", "8-15 days", "16-30 days", "31+ days"]
         
         def create_pivot_series(df, name):
-            if df.empty:
+            if df.empty or 'time_bucket' not in df.columns:
                 return pd.Series([0] * len(time_categories), index=time_categories, name=name)
             series = df.groupby('time_bucket')['CAMPAIGNINVITATIONID'].nunique().reindex(time_categories, fill_value=0)
             series.name = name
