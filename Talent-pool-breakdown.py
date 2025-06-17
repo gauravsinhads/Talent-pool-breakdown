@@ -39,8 +39,8 @@ tp = load_data()
 if tp is not None:
 
     # --- System Folder Definition ---
-    SYSTEM_FOLDERS = ['',
-        'Inbox', 'Unresponsive', 'Completed', 'Unresponsive Talkscore', 'Passed MQ', 'Failed MQ',
+    SYSTEM_FOLDERS = [
+        '', 'Inbox', 'Unresponsive', 'Completed', 'Unresponsive Talkscore', 'Passed MQ', 'Failed MQ',
         'TalkScore Retake', 'Unresponsive Talkscore Retake', 'Failed TalkScore', 'Cold Leads',
         'Cold Leads Talkscore', 'Cold Leads Talkscore Retake', 'On hold', 'Rejected',
         'Talent Pool', 'Shortlisted', 'Hired', 'Candidate Databank', 'For Talkscore',
