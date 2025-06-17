@@ -47,39 +47,39 @@ if tp is not None:
         'Tier 2 Program', 'Tier 1 Program', 'For Versant', 'For Reengagement'
     ]
 
-    # --- Sidebar Filters ---
-    st.sidebar.header("Filter Options")
+    # --- Filters Expander ---
+    with st.expander("Filter Options"):
+        # Filter 1: Date range for 'INVITATIONDT'
+        min_date = tp['INVITATIONDT'].min().date()
+        max_date = tp['INVITATIONDT'].max().date()
+        start_date, end_date = st.date_input(
+            "Invitation Date Range",
+            [min_date, max_date],
+            min_value=min_date,
+            max_value=max_date
+        )
 
-    # Filter 1: Date range for 'INVITATIONDT'
-    min_date = tp['INVITATIONDT'].min().date()
-    max_date = tp['INVITATIONDT'].max().date()
-    start_date, end_date = st.sidebar.date_input(
-        "Invitation Date Range",
-        [min_date, max_date],
-        min_value=min_date,
-        max_value=max_date
-    )
+        # Filter 2: Multiselect dropdown for 'CAMPAIGN_SITE'
+        all_sites = tp['CAMPAIGN_SITE'].dropna().unique()
+        selected_sites = st.multiselect(
+            "Campaign Site",
+            all_sites,
+            default=all_sites
+        )
 
-    # Filter 2: Multiselect dropdown for 'CAMPAIGN_SITE'
-    all_sites = tp['CAMPAIGN_SITE'].dropna().unique()
-    selected_sites = st.sidebar.multiselect(
-        "Campaign Site",
-        all_sites,
-        default=all_sites
-    )
+        # Filter 3: Dependent multiselect for 'CAMPAIGNTITLE'
+        # Options for campaign titles are dependent on the selected campaign sites
+        if selected_sites:
+            available_titles = tp[tp['CAMPAIGN_SITE'].isin(selected_sites)]['CAMPAIGNTITLE'].dropna().unique()
+        else:
+            available_titles = tp['CAMPAIGNTITLE'].dropna().unique()
 
-    # Filter 3: Dependent multiselect for 'CAMPAIGNTITLE'
-    # Options for campaign titles are dependent on the selected campaign sites
-    if selected_sites:
-        available_titles = tp[tp['CAMPAIGN_SITE'].isin(selected_sites)]['CAMPAIGNTITLE'].dropna().unique()
-    else:
-        available_titles = tp['CAMPAIGNTITLE'].dropna().unique()
+        selected_titles = st.multiselect(
+            "Campaign Title",
+            available_titles,
+            default=available_titles
+        )
 
-    selected_titles = st.sidebar.multiselect(
-        "Campaign Title",
-        available_titles,
-        default=available_titles
-    )
 
     # --- Data Filtering Logic ---
     # Apply filters to the dataframe
@@ -191,3 +191,4 @@ if tp is not None:
 
 else:
     st.info("Data could not be loaded. Please check the file path and format.")
+
