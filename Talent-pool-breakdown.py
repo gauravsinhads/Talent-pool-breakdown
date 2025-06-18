@@ -205,6 +205,59 @@ if tp is not None:
                 daily_pivot_table.loc['Grand Total'] = daily_pivot_table.sum(axis=0)
 
                 st.dataframe(daily_pivot_table.style.format("{:.0f}"))
+                st.divider()
+
+                # --- CEFR Breakdown Table ---
+                st.header("New (for endorsement) : CEFR breakdown")
+                
+                # Isolate "New (for endorsement)" data from the daily dataset
+                new_endorsement_data_daily = daily_pivot_data[daily_pivot_data['Row_label'] == 'New (for endorsement)'].copy()
+
+                if not new_endorsement_data_daily.empty:
+                    # Check if 'CEFR' column exists
+                    if 'CEFR' in new_endorsement_data_daily.columns:
+                        cefr_sequence = ["C1", "C2", "B1", "B1+", "B2", "B2+", "A0", "A2", "A2+"]
+                        
+                        # Fill NaN/empty values to create the "No CEFR" category
+                        new_endorsement_data_daily['CEFR_filled'] = new_endorsement_data_daily['CEFR'].fillna('No CEFR')
+                        
+                        # Categorize into main sequence, "No CEFR", or "Others"
+                        def categorize_cefr(cefr_value):
+                            if cefr_value in cefr_sequence or cefr_value == 'No CEFR':
+                                return cefr_value
+                            # Handles cases that are not null but also not in the sequence
+                            elif pd.notna(cefr_value): 
+                                return 'Others'
+                            else:
+                                return 'No CEFR'
+
+                        new_endorsement_data_daily['CEFR_Category'] = new_endorsement_data_daily['CEFR_filled'].apply(categorize_cefr)
+
+                        # Create the pivot table
+                        cefr_pivot_table = pd.crosstab(
+                            index=new_endorsement_data_daily['CEFR_Category'],
+                            columns=new_endorsement_data_daily['activity_date_str'],
+                            values=new_endorsement_data_daily['CAMPAIGNINVITATIONID'],
+                            aggfunc='nunique'
+                        ).fillna(0)
+                        
+                        # Format the pivot table
+                        cefr_row_order = cefr_sequence + ['No CEFR', 'Others']
+                        
+                        # Use the same daily_cols as the previous table
+                        cefr_pivot_table = cefr_pivot_table.reindex(index=cefr_row_order, columns=daily_cols, fill_value=0)
+                        
+                        # Add Grand Totals
+                        cefr_pivot_table['Grand Total'] = cefr_pivot_table.sum(axis=1)
+                        cefr_pivot_table.loc['Grand Total'] = cefr_pivot_table.sum(axis=0)
+
+                        st.dataframe(cefr_pivot_table.style.format("{:.0f}"))
+                    else:
+                        st.warning("The 'CEFR' column was not found in the dataset.")
+
+                else:
+                    st.warning(f"No 'New (for endorsement)' candidates found in the 8-day period ending {end_date.strftime('%b %d, %Y')}.")
+
             else:
                 st.warning(f"No activity recorded in the 8-day period ending {end_date.strftime('%b %d, %Y')} for the selected filters.")
 
