@@ -179,12 +179,11 @@ if tp is not None:
             # --- Pivot Table Calculation (Daily) ---
             st.header("TALENTPOOL BREAKDOWN (Daily)")
             
-            # Filter for the 7 days prior to today
-            today = datetime.now().date()
-            seven_days_ago = today - timedelta(days=7)
+            # Filter for the last 8 days based on the selected end_date from the main filter
+            last_8_days_start_date = end_date - timedelta(days=7)
             daily_pivot_data = pivot_data[
-                (pivot_data['ACTIVITY_CREATED_AT'].dt.date >= seven_days_ago) & 
-                (pivot_data['ACTIVITY_CREATED_AT'].dt.date < today)
+                (pivot_data['ACTIVITY_CREATED_AT'].dt.date >= last_8_days_start_date) & 
+                (pivot_data['ACTIVITY_CREATED_AT'].dt.date <= end_date)
             ].copy()
             
             if not daily_pivot_data.empty:
@@ -197,8 +196,8 @@ if tp is not None:
                     aggfunc='nunique'
                 ).fillna(0)
 
-                # Define columns for the 7 days prior to today to ensure they are all present and sorted
-                daily_cols = [(today - timedelta(days=i)).strftime('%b_%d') for i in range(7, 0, -1)]
+                # Define columns for the last 8 days ending on the selected end_date to ensure they are all present and sorted
+                daily_cols = [(end_date - timedelta(days=i)).strftime('%b_%d') for i in range(7, -1, -1)]
                 daily_pivot_table = daily_pivot_table.reindex(index=row_categories, columns=daily_cols, fill_value=0)
 
                 # Add Grand Totals
@@ -207,7 +206,7 @@ if tp is not None:
 
                 st.dataframe(daily_pivot_table.style.format("{:.0f}"))
             else:
-                st.warning("No activity recorded in the 7 days prior to today for the selected filters.")
+                st.warning(f"No activity recorded in the 8-day period ending {end_date.strftime('%b %d, %Y')} for the selected filters.")
 
         else:
             st.warning("No candidates matched the breakdown criteria for the selected filters.")
