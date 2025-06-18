@@ -267,6 +267,9 @@ if tp is not None:
                             values=rejected_data_daily['CAMPAIGNINVITATIONID'],
                             aggfunc='nunique'
                         ).fillna(0)
+                        
+                        # Rename the index levels for better display
+                        rejection_pivot.index.set_names(['HM Reject reasons', 'CEFR'], inplace=True)
 
                         rejection_pivot = rejection_pivot.reindex(columns=daily_cols, fill_value=0)
                         rejection_pivot['Grand Total'] = rejection_pivot.sum(axis=1)
