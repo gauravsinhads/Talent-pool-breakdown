@@ -40,7 +40,7 @@ if tp is not None:
 
     # --- System Folder Definition ---
     SYSTEM_FOLDERS = [
-        'Inbox', 'Unresponsive', 'Completed', 'Unresponsive Talkscore', 'Passed MQ', 'Failed MQ',
+        '', 'Inbox', 'Unresponsive', 'Completed', 'Unresponsive Talkscore', 'Passed MQ', 'Failed MQ',
         'TalkScore Retake', 'Unresponsive Talkscore Retake', 'Failed TalkScore', 'Cold Leads',
         'Cold Leads Talkscore', 'Cold Leads Talkscore Retake', 'On hold', 'Rejected',
         'Talent Pool', 'Shortlisted', 'Hired', 'Candidate Databank', 'For Talkscore',
@@ -154,11 +154,12 @@ if tp is not None:
         )
         st.divider()
 
-        # --- Pivot Table Calculation ---
+        # --- Pivot Table Calculation (Time Buckets) ---
         pivot_data = latest_activity.dropna(subset=['Row_label'])
         
         if not pivot_data.empty:
-            pivot_table = pd.crosstab(
+            st.header("TALENTPOOL BREAKDOWN")
+            pivot_table_time = pd.crosstab(
                 index=pivot_data['Row_label'],
                 columns=pivot_data['Column_label'],
                 values=pivot_data['CAMPAIGNINVITATIONID'],
@@ -167,13 +168,44 @@ if tp is not None:
 
             time_categories = ["<24hrs", "1-3 days", "4-7 days", "8-15 days", "16-30 days", "31+ days"]
             row_categories = ['New (for endorsement)', 'Rejected (for waterfall)', 'Candidate Databank (in Cooling Period)']
-            pivot_table = pivot_table.reindex(index=row_categories, columns=time_categories, fill_value=0)
+            pivot_table_time = pivot_table_time.reindex(index=row_categories, columns=time_categories, fill_value=0)
 
-            pivot_table['Grand Total'] = pivot_table.sum(axis=1)
-            pivot_table.loc['Grand Total'] = pivot_table.sum(axis=0)
+            pivot_table_time['Grand Total'] = pivot_table_time.sum(axis=1)
+            pivot_table_time.loc['Grand Total'] = pivot_table_time.sum(axis=0)
+            
+            st.dataframe(pivot_table_time.style.format("{:.0f}"))
+            st.divider()
 
-            st.header("Talent Pool Breakdown")
-            st.dataframe(pivot_table.style.format("{:.0f}"))
+            # --- Pivot Table Calculation (Daily) ---
+            st.header("TALENTPOOL BREAKDOWN (Daily)")
+            
+            # Filter for the last 8 days
+            today = datetime.now().date()
+            eight_days_ago = today - timedelta(days=7)
+            daily_pivot_data = pivot_data[pivot_data['ACTIVITY_CREATED_AT'].dt.date >= eight_days_ago].copy()
+            
+            if not daily_pivot_data.empty:
+                daily_pivot_data['activity_date_str'] = daily_pivot_data['ACTIVITY_CREATED_AT'].dt.strftime('%b_%d')
+                
+                daily_pivot_table = pd.crosstab(
+                    index=daily_pivot_data['Row_label'],
+                    columns=daily_pivot_data['activity_date_str'],
+                    values=daily_pivot_data['CAMPAIGNINVITATIONID'],
+                    aggfunc='nunique'
+                ).fillna(0)
+
+                # Define columns for the last 8 days to ensure they are all present and sorted
+                daily_cols = [(today - timedelta(days=i)).strftime('%b_%d') for i in range(7, -1, -1)]
+                daily_pivot_table = daily_pivot_table.reindex(index=row_categories, columns=daily_cols, fill_value=0)
+
+                # Add Grand Totals
+                daily_pivot_table['Grand Total'] = daily_pivot_table.sum(axis=1)
+                daily_pivot_table.loc['Grand Total'] = daily_pivot_table.sum(axis=0)
+
+                st.dataframe(daily_pivot_table.style.format("{:.0f}"))
+            else:
+                st.warning("No activity recorded in the last 8 days for the selected filters.")
+
         else:
             st.warning("No candidates matched the breakdown criteria for the selected filters.")
 
