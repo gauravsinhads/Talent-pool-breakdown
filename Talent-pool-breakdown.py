@@ -179,10 +179,13 @@ if tp is not None:
             # --- Pivot Table Calculation (Daily) ---
             st.header("TALENTPOOL BREAKDOWN (Daily)")
             
-            # Filter for the last 8 days
+            # Filter for the last 7 days, excluding today
             today = datetime.now().date()
-            eight_days_ago = today - timedelta(days=7)
-            daily_pivot_data = pivot_data[pivot_data['ACTIVITY_CREATED_AT'].dt.date >= eight_days_ago].copy()
+            seven_days_ago = today - timedelta(days=7)
+            daily_pivot_data = pivot_data[
+                (pivot_data['ACTIVITY_CREATED_AT'].dt.date >= seven_days_ago) &
+                (pivot_data['ACTIVITY_CREATED_AT'].dt.date < today)
+            ].copy()
             
             if not daily_pivot_data.empty:
                 daily_pivot_data['activity_date_str'] = daily_pivot_data['ACTIVITY_CREATED_AT'].dt.strftime('%b_%d')
@@ -194,8 +197,8 @@ if tp is not None:
                     aggfunc='nunique'
                 ).fillna(0)
 
-                # Define columns for the last 8 days to ensure they are all present and sorted
-                daily_cols = [(today - timedelta(days=i)).strftime('%b_%d') for i in range(7, -1, -1)]
+                # Define columns for the last 7 days to ensure they are all present and sorted, excluding today
+                daily_cols = [(today - timedelta(days=i)).strftime('%b_%d') for i in range(7, 0, -1)]
                 daily_pivot_table = daily_pivot_table.reindex(index=row_categories, columns=daily_cols, fill_value=0)
 
                 # Add Grand Totals
@@ -204,7 +207,7 @@ if tp is not None:
 
                 st.dataframe(daily_pivot_table.style.format("{:.0f}"))
             else:
-                st.warning("No activity recorded in the last 8 days for the selected filters.")
+                st.warning("No activity recorded in the last 7 days for the selected filters.")
 
         else:
             st.warning("No candidates matched the breakdown criteria for the selected filters.")
@@ -212,4 +215,4 @@ if tp is not None:
     else:
         st.warning("No data available for the selected filters.")
 else:
-    st.info("Data could not be loaded. Please check the file path and format.")
+    st.info("Data could not be loaded. Please check the file path 
