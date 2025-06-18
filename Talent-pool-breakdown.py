@@ -247,11 +247,19 @@ if tp is not None:
                         # Use the same daily_cols as the previous table
                         cefr_pivot_table = cefr_pivot_table.reindex(index=cefr_row_order, columns=daily_cols, fill_value=0)
                         
-                        # Add Grand Totals
+                        # Add Grand Total column
                         cefr_pivot_table['Grand Total'] = cefr_pivot_table.sum(axis=1)
-                        cefr_pivot_table.loc['Grand Total'] = cefr_pivot_table.sum(axis=0)
 
-                        st.dataframe(cefr_pivot_table.style.format("{:.0f}"))
+                        # Filter out rows where the grand total is 0
+                        cefr_pivot_table_to_display = cefr_pivot_table[cefr_pivot_table['Grand Total'] > 0].copy()
+                        
+                        if not cefr_pivot_table_to_display.empty:
+                            # Add Grand Total row to the filtered table
+                            cefr_pivot_table_to_display.loc['Grand Total'] = cefr_pivot_table_to_display.sum(axis=0)
+                            st.dataframe(cefr_pivot_table_to_display.style.format("{:.0f}"))
+                        else:
+                             st.info(f"No candidates with CEFR data found for this period in the 'New (for endorsement)' category.")
+
                     else:
                         st.warning("The 'CEFR' column was not found in the dataset.")
 
