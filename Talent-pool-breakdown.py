@@ -210,30 +210,20 @@ if tp is not None:
                 # --- CEFR Breakdown Table ---
                 st.header("New (for endorsement) : CEFR breakdown")
                 
-                # Isolate "New (for endorsement)" data from the daily dataset
                 new_endorsement_data_daily = daily_pivot_data[daily_pivot_data['Row_label'] == 'New (for endorsement)'].copy()
 
                 if not new_endorsement_data_daily.empty:
-                    # Check if 'CEFR' column exists
                     if 'CEFR' in new_endorsement_data_daily.columns:
                         cefr_sequence = ["C1", "C2", "B1", "B1+", "B2", "B2+", "A0", "A2", "A2+"]
                         
-                        # Fill NaN/empty values to create the "No CEFR" category
-                        new_endorsement_data_daily['CEFR_filled'] = new_endorsement_data_daily['CEFR'].fillna('No CEFR')
-                        
-                        # Categorize into main sequence, "No CEFR", or "Others"
                         def categorize_cefr(cefr_value):
-                            if cefr_value in cefr_sequence or cefr_value == 'No CEFR':
-                                return cefr_value
-                            # Handles cases that are not null but also not in the sequence
-                            elif pd.notna(cefr_value): 
-                                return 'Others'
-                            else:
-                                return 'No CEFR'
+                            if cefr_value in cefr_sequence or cefr_value == 'No CEFR': return cefr_value
+                            elif pd.notna(cefr_value): return 'Others'
+                            else: return 'No CEFR'
 
+                        new_endorsement_data_daily['CEFR_filled'] = new_endorsement_data_daily['CEFR'].fillna('No CEFR')
                         new_endorsement_data_daily['CEFR_Category'] = new_endorsement_data_daily['CEFR_filled'].apply(categorize_cefr)
 
-                        # Create the pivot table
                         cefr_pivot_table = pd.crosstab(
                             index=new_endorsement_data_daily['CEFR_Category'],
                             columns=new_endorsement_data_daily['activity_date_str'],
@@ -241,30 +231,53 @@ if tp is not None:
                             aggfunc='nunique'
                         ).fillna(0)
                         
-                        # Format the pivot table
                         cefr_row_order = cefr_sequence + ['No CEFR', 'Others']
-                        
-                        # Use the same daily_cols as the previous table
                         cefr_pivot_table = cefr_pivot_table.reindex(index=cefr_row_order, columns=daily_cols, fill_value=0)
-                        
-                        # Add Grand Total column
                         cefr_pivot_table['Grand Total'] = cefr_pivot_table.sum(axis=1)
 
-                        # Filter out rows where the grand total is 0
                         cefr_pivot_table_to_display = cefr_pivot_table[cefr_pivot_table['Grand Total'] > 0].copy()
                         
                         if not cefr_pivot_table_to_display.empty:
-                            # Add Grand Total row to the filtered table
                             cefr_pivot_table_to_display.loc['Grand Total'] = cefr_pivot_table_to_display.sum(axis=0)
                             st.dataframe(cefr_pivot_table_to_display.style.format("{:.0f}"))
+                        else: st.info(f"No candidates with CEFR data found for this period in the 'New (for endorsement)' category.")
+                    else: st.warning("The 'CEFR' column was not found in the dataset.")
+                else: st.warning(f"No 'New (for endorsement)' candidates found in the 8-day period ending {end_date.strftime('%b %d, %Y')}.")
+                st.divider()
+
+
+                # --- Rejected Waterfall Breakdown Table ---
+                st.header("Rejected (for waterfall): HM Reject reasons with CEFR breakdown")
+                
+                rejected_data_daily = daily_pivot_data[daily_pivot_data['Row_label'] == 'Rejected (for waterfall)'].copy()
+
+                if not rejected_data_daily.empty:
+                    if 'CEFR' in rejected_data_daily.columns and 'FAILED_REASON' in rejected_data_daily.columns:
+                        
+                        rejected_data_daily['CEFR_filled'] = rejected_data_daily['CEFR'].fillna('No CEFR')
+                        rejected_data_daily['CEFR_Category'] = rejected_data_daily['CEFR_filled'].apply(categorize_cefr)
+                        rejected_data_daily['FAILED_REASON_filled'] = rejected_data_daily['FAILED_REASON'].fillna('No Reason Provided')
+
+                        rejection_pivot = pd.crosstab(
+                            index=[rejected_data_daily['FAILED_REASON_filled'], rejected_data_daily['CEFR_Category']],
+                            columns=rejected_data_daily['activity_date_str'],
+                            values=rejected_data_daily['CAMPAIGNINVITATIONID'],
+                            aggfunc='nunique'
+                        ).fillna(0)
+
+                        rejection_pivot = rejection_pivot.reindex(columns=daily_cols, fill_value=0)
+                        rejection_pivot['Grand Total'] = rejection_pivot.sum(axis=1)
+
+                        if not rejection_pivot.empty:
+                            st.dataframe(rejection_pivot.style.format("{:.0f}"))
                         else:
-                             st.info(f"No candidates with CEFR data found for this period in the 'New (for endorsement)' category.")
+                            st.info("No rejection data to display for the selected period.")
 
                     else:
-                        st.warning("The 'CEFR' column was not found in the dataset.")
-
+                        st.warning("The 'CEFR' and/or 'FAILED_REASON' columns were not found.")
                 else:
-                    st.warning(f"No 'New (for endorsement)' candidates found in the 8-day period ending {end_date.strftime('%b %d, %Y')}.")
+                    st.warning(f"No 'Rejected (for waterfall)' candidates found in the 8-day period ending {end_date.strftime('%b %d, %Y')}.")
+
 
             else:
                 st.warning(f"No activity recorded in the 8-day period ending {end_date.strftime('%b %d, %Y')} for the selected filters.")
