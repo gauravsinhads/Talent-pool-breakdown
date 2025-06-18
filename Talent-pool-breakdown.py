@@ -217,12 +217,11 @@ if tp is not None:
                         cefr_sequence = ["C1", "C2", "B1", "B1+", "B2", "B2+", "A0", "A2", "A2+"]
                         
                         def categorize_cefr(cefr_value):
-                            if cefr_value in cefr_sequence or cefr_value == 'No CEFR': return cefr_value
-                            elif pd.notna(cefr_value): return 'Others'
-                            else: return 'No CEFR'
+                            if cefr_value in cefr_sequence: return cefr_value
+                            elif pd.isna(cefr_value) or cefr_value == '': return 'No CEFR'
+                            else: return 'Others'
 
-                        new_endorsement_data_daily['CEFR_filled'] = new_endorsement_data_daily['CEFR'].fillna('No CEFR')
-                        new_endorsement_data_daily['CEFR_Category'] = new_endorsement_data_daily['CEFR_filled'].apply(categorize_cefr)
+                        new_endorsement_data_daily['CEFR_Category'] = new_endorsement_data_daily['CEFR'].apply(categorize_cefr)
 
                         cefr_pivot_table = pd.crosstab(
                             index=new_endorsement_data_daily['CEFR_Category'],
@@ -254,8 +253,12 @@ if tp is not None:
                 if not rejected_data_daily.empty:
                     if 'CEFR' in rejected_data_daily.columns and 'FAILED_REASON' in rejected_data_daily.columns:
                         
-                        rejected_data_daily['CEFR_filled'] = rejected_data_daily['CEFR'].fillna('No CEFR')
-                        rejected_data_daily['CEFR_Category'] = rejected_data_daily['CEFR_filled'].apply(categorize_cefr)
+                        def categorize_cefr_reject(cefr_value):
+                            if cefr_value in cefr_sequence: return cefr_value
+                            elif pd.isna(cefr_value) or cefr_value == '': return 'No CEFR'
+                            else: return 'Others'
+                        
+                        rejected_data_daily['CEFR_Category'] = rejected_data_daily['CEFR'].apply(categorize_cefr_reject)
                         rejected_data_daily['FAILED_REASON_filled'] = rejected_data_daily['FAILED_REASON'].fillna('No Reason Provided')
 
                         rejection_pivot = pd.crosstab(
@@ -269,6 +272,8 @@ if tp is not None:
                         rejection_pivot['Grand Total'] = rejection_pivot.sum(axis=1)
 
                         if not rejection_pivot.empty:
+                            # Add grand total row for columns
+                            rejection_pivot.loc[('Grand Total', ''), :] = rejection_pivot.sum(axis=0)
                             st.dataframe(rejection_pivot.style.format("{:.0f}"))
                         else:
                             st.info("No rejection data to display for the selected period.")
