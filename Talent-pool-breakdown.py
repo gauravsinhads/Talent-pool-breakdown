@@ -54,7 +54,7 @@ if tp is not None:
     min_date = tp['INVITATIONDT'].min().date()
     max_date = tp['INVITATIONDT'].max().date()
     
-    default_start_date = datetime.now().date() - timedelta(days=30)
+    default_start_date = max_date - timedelta(days=30)
     if default_start_date < min_date:
         default_start_date = min_date
 
