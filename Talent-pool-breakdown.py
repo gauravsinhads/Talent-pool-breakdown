@@ -15,29 +15,29 @@ def load_data():
     - Converts date/time columns to datetime objects.
     - Handles potential errors during data loading.
     """
+    # The original code had a direct session.sql call.
+    # For standalone execution, we revert to reading a CSV.
+    # Replace this with your session.sql call when integrating.
     try:
-        # Load the dataset
+        # Original line: return session.sql("""select * from STREAMLITAPPS.TALKPUSH.SOURCING_AND_EARLY_STAGE_METRICS""").toPandas()
         tp = pd.read_csv("SOURCING & EARLY STAGE METRICS.csv")
-
-        # Convert date columns to datetime objects, coercing errors to NaT (Not a Time)
-        tp['INVITATIONDT'] = pd.to_datetime(tp['INVITATIONDT'], errors='coerce')
-        tp['ACTIVITY_CREATED_AT'] = pd.to_datetime(tp['ACTIVITY_CREATED_AT'], errors='coerce')
-
-        # Drop rows where essential date columns have NaT values after conversion
-        tp.dropna(subset=['INVITATIONDT', 'ACTIVITY_CREATED_AT'], inplace=True)
-
         return tp
     except FileNotFoundError:
         st.error("The data file 'SOURCING & EARLY STAGE METRICS.csv' was not found.")
         st.info("Please make sure the CSV file is in the same directory as the Streamlit script.")
         return None
 
-# Load the data using the cached function
 tp = load_data()
 
 # Proceed only if data is loaded successfully
 if tp is not None:
+    # Convert date columns to datetime objects, coercing errors to NaT (Not a Time)
+    tp['INVITATIONDT'] = pd.to_datetime(tp['INVITATIONDT'], errors='coerce')
+    tp['ACTIVITY_CREATED_AT'] = pd.to_datetime(tp['ACTIVITY_CREATED_AT'], errors='coerce')
 
+    # Drop rows where essential date columns have NaT values after conversion
+    tp.dropna(subset=['INVITATIONDT', 'ACTIVITY_CREATED_AT'], inplace=True)
+    
     # --- System Folder Definition ---
     SYSTEM_FOLDERS = [
         '', 'Inbox', 'Unresponsive', 'Completed', 'Unresponsive Talkscore', 'Passed MQ', 'Failed MQ',
@@ -54,7 +54,8 @@ if tp is not None:
     min_date = tp['INVITATIONDT'].min().date()
     max_date = tp['INVITATIONDT'].max().date()
     
-    default_start_date = max_date - timedelta(days=30)
+    # Using 60 days as per the provided code
+    default_start_date = max_date - timedelta(days=60)
     if default_start_date < min_date:
         default_start_date = min_date
 
@@ -145,13 +146,23 @@ if tp is not None:
             filtered_tp, label_mapping, on='CAMPAIGNINVITATIONID', how='left'
         )
         
-        # --- Download Button for Labeled Data ---
-        st.download_button(
-           label="Download Filtered Data as CSV (with labels)",
-           data=data_for_download.to_csv(index=False).encode('utf-8'),
-           file_name='filtered_talentpool_data_with_labels.csv',
-           mime='text/csv',
-        )
+        # --- Download Buttons Section ---
+        col1, col2 = st.columns(2)
+        with col1:
+            st.download_button(
+               label="Download Filtered Data as CSV (with labels)",
+               data=data_for_download.to_csv(index=False).encode('utf-8'),
+               file_name='filtered_talentpool_data_with_labels.csv',
+               mime='text/csv',
+            )
+        with col2:
+            st.download_button(
+               label="Download Latest Activity per Candidate",
+               data=latest_activity.to_csv(index=False).encode('utf-8'),
+               file_name='latest_activity_per_candidate.csv',
+               mime='text/csv',
+               type="primary" # This highlights the button
+            )
         st.divider()
 
         # --- Pivot Table Calculation (Time Buckets) ---
@@ -179,7 +190,6 @@ if tp is not None:
             # --- Pivot Table Calculation (Daily) ---
             st.header("TALENTPOOL BREAKDOWN (Daily)")
             
-            # Filter for the last 8 days based on the selected end_date from the main filter
             last_8_days_start_date = end_date - timedelta(days=7)
             daily_pivot_data = pivot_data[
                 (pivot_data['ACTIVITY_CREATED_AT'].dt.date >= last_8_days_start_date) & 
@@ -196,11 +206,9 @@ if tp is not None:
                     aggfunc='nunique'
                 ).fillna(0)
 
-                # Define columns for the last 8 days ending on the selected end_date to ensure they are all present and sorted
                 daily_cols = [(end_date - timedelta(days=i)).strftime('%b_%d') for i in range(7, -1, -1)]
                 daily_pivot_table = daily_pivot_table.reindex(index=row_categories, columns=daily_cols, fill_value=0)
 
-                # Add Grand Totals
                 daily_pivot_table['Grand Total'] = daily_pivot_table.sum(axis=1)
                 daily_pivot_table.loc['Grand Total'] = daily_pivot_table.sum(axis=0)
 
@@ -268,14 +276,12 @@ if tp is not None:
                             aggfunc='nunique'
                         ).fillna(0)
                         
-                        # Rename the index levels for better display
                         rejection_pivot.index.set_names(['HM Reject reasons', 'CEFR'], inplace=True)
 
                         rejection_pivot = rejection_pivot.reindex(columns=daily_cols, fill_value=0)
                         rejection_pivot['Grand Total'] = rejection_pivot.sum(axis=1)
 
                         if not rejection_pivot.empty:
-                            # Add grand total row for columns
                             rejection_pivot.loc[('Grand Total', ''), :] = rejection_pivot.sum(axis=0)
                             st.dataframe(rejection_pivot.style.format("{:.0f}"))
                         else:
