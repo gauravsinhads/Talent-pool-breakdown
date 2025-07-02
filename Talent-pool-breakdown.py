@@ -126,9 +126,10 @@ if tp is not None:
                 return 'Rejected (for waterfall)'
             return None # Return None if no category matches
 
-        def get_time_bucket(activity_date):
+        # UPDATED: Time bucket calculation is now relative to the selected end_date
+        def get_time_bucket(activity_date, reference_date):
             if pd.isnull(activity_date): return None
-            days = (datetime.now() - activity_date).days
+            days = (reference_date - activity_date).days
             if days < 1: return "<24hrs"
             if 1 <= days <= 3: return "1-3 days"
             if 4 <= days <= 7: return "4-7 days"
@@ -138,7 +139,8 @@ if tp is not None:
 
         # Apply labels to the latest activities
         latest_activity['Row_label'] = latest_activity.apply(get_row_label, axis=1)
-        latest_activity['Column_label'] = latest_activity['ACTIVITY_CREATED_AT'].apply(get_time_bucket)
+        # Pass the selected end_datetime as the reference for consistent calculation
+        latest_activity['Column_label'] = latest_activity['ACTIVITY_CREATED_AT'].apply(lambda x: get_time_bucket(x, end_datetime))
 
         # Prepare data for download by merging labels into the filtered raw data
         label_mapping = latest_activity[['CAMPAIGNINVITATIONID', 'Row_label', 'Column_label']]
