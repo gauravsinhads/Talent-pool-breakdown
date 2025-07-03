@@ -17,6 +17,8 @@ def load_data():
     """
     try:
         # Load the dataset
+        # In your original app, this would be:
+        # return session.sql("""select * from STREAMLITAPPS.TALKPUSH.SOURCING_AND_EARLY_STAGE_METRICS""").toPandas()
         tp = pd.read_csv("SOURCING & EARLY STAGE METRICS.csv")
 
         # Convert date columns to datetime objects, coercing errors to NaT (Not a Time)
@@ -54,7 +56,7 @@ if tp is not None:
     min_date = tp['INVITATIONDT'].min().date()
     max_date = tp['INVITATIONDT'].max().date()
     
-    default_start_date = max_date - timedelta(days=30)
+    default_start_date = max_date - timedelta(days=60)
     if default_start_date < min_date:
         default_start_date = min_date
 
@@ -125,9 +127,10 @@ if tp is not None:
                 return 'Rejected (for waterfall)'
             return None # Return None if no category matches
 
-        def get_time_bucket(activity_date):
+        # Using selected end_date for consistent time bucket calculation
+        def get_time_bucket(activity_date, reference_date):
             if pd.isnull(activity_date): return None
-            days = (datetime.now() - activity_date).days
+            days = (reference_date - activity_date).days
             if days < 1: return "<24hrs"
             if 1 <= days <= 3: return "1-3 days"
             if 4 <= days <= 7: return "4-7 days"
@@ -137,21 +140,32 @@ if tp is not None:
 
         # Apply labels to the latest activities
         latest_activity['Row_label'] = latest_activity.apply(get_row_label, axis=1)
-        latest_activity['Column_label'] = latest_activity['ACTIVITY_CREATED_AT'].apply(get_time_bucket)
+        latest_activity['Column_label'] = latest_activity['ACTIVITY_CREATED_AT'].apply(lambda x: get_time_bucket(x, end_datetime))
 
-        # Prepare data for download by merging labels into the filtered raw data
+        # Prepare data for the first download button (full history with labels)
         label_mapping = latest_activity[['CAMPAIGNINVITATIONID', 'Row_label', 'Column_label']]
         data_for_download = pd.merge(
             filtered_tp, label_mapping, on='CAMPAIGNINVITATIONID', how='left'
         )
         
-        # --- Download Button for Labeled Data ---
-        st.download_button(
-           label="Download Filtered Data as CSV (with labels)",
-           data=data_for_download.to_csv(index=False).encode('utf-8'),
-           file_name='filtered_talentpool_data_with_labels.csv',
-           mime='text/csv',
-        )
+        # --- Download Buttons Section ---
+        col1, col2 = st.columns(2)
+        with col1:
+            st.download_button(
+               label="Download Filtered Data as CSV (with labels)",
+               data=data_for_download.to_csv(index=False).encode('utf-8'),
+               file_name='filtered_talentpool_data_with_labels.csv',
+               mime='text/csv',
+            )
+        with col2:
+            # New highlighted download button for latest activity only
+            st.download_button(
+               label="Download Latest Activity per Candidate",
+               data=latest_activity.to_csv(index=False).encode('utf-8'),
+               file_name='latest_activity_per_candidate.csv',
+               mime='text/csv',
+               type="primary" # This highlights the button
+            )
         st.divider()
 
         # --- Pivot Table Calculation (Time Buckets) ---
@@ -179,7 +193,6 @@ if tp is not None:
             # --- Pivot Table Calculation (Daily) ---
             st.header("TALENTPOOL BREAKDOWN (Daily)")
             
-            # Filter for the last 8 days based on the selected end_date from the main filter
             last_8_days_start_date = end_date - timedelta(days=7)
             daily_pivot_data = pivot_data[
                 (pivot_data['ACTIVITY_CREATED_AT'].dt.date >= last_8_days_start_date) & 
@@ -196,11 +209,9 @@ if tp is not None:
                     aggfunc='nunique'
                 ).fillna(0)
 
-                # Define columns for the last 8 days ending on the selected end_date to ensure they are all present and sorted
                 daily_cols = [(end_date - timedelta(days=i)).strftime('%b_%d') for i in range(7, -1, -1)]
                 daily_pivot_table = daily_pivot_table.reindex(index=row_categories, columns=daily_cols, fill_value=0)
 
-                # Add Grand Totals
                 daily_pivot_table['Grand Total'] = daily_pivot_table.sum(axis=1)
                 daily_pivot_table.loc['Grand Total'] = daily_pivot_table.sum(axis=0)
 
@@ -268,14 +279,12 @@ if tp is not None:
                             aggfunc='nunique'
                         ).fillna(0)
                         
-                        # Rename the index levels for better display
                         rejection_pivot.index.set_names(['HM Reject reasons', 'CEFR'], inplace=True)
 
                         rejection_pivot = rejection_pivot.reindex(columns=daily_cols, fill_value=0)
                         rejection_pivot['Grand Total'] = rejection_pivot.sum(axis=1)
 
                         if not rejection_pivot.empty:
-                            # Add grand total row for columns
                             rejection_pivot.loc[('Grand Total', ''), :] = rejection_pivot.sum(axis=0)
                             st.dataframe(rejection_pivot.style.format("{:.0f}"))
                         else:
