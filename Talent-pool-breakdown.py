@@ -16,7 +16,6 @@ def load_data():
     - Handles potential errors during data loading.
     """
     try:
-        # Load the dataset
         # In your original app, this would be:
         # return session.sql("""select * from STREAMLITAPPS.TALKPUSH.SOURCING_AND_EARLY_STAGE_METRICS""").toPandas()
         tp = pd.read_csv("SOURCING & EARLY STAGE METRICS.csv")
@@ -127,10 +126,11 @@ if tp is not None:
                 return 'Rejected (for waterfall)'
             return None # Return None if no category matches
 
-        # Using selected end_date for consistent time bucket calculation
-        def get_time_bucket(activity_date, reference_date):
+        # UPDATED: This function now calculates based on the current system time
+        def get_time_bucket(activity_date):
             if pd.isnull(activity_date): return None
-            days = (reference_date - activity_date).days
+            # The calculation is now between the current time and the activity time
+            days = (datetime.now() - activity_date).days
             if days < 1: return "<24hrs"
             if 1 <= days <= 3: return "1-3 days"
             if 4 <= days <= 7: return "4-7 days"
@@ -140,9 +140,10 @@ if tp is not None:
 
         # Apply labels to the latest activities
         latest_activity['Row_label'] = latest_activity.apply(get_row_label, axis=1)
-        latest_activity['Column_label'] = latest_activity['ACTIVITY_CREATED_AT'].apply(lambda x: get_time_bucket(x, end_datetime))
+        # The call is updated to no longer pass the end_date
+        latest_activity['Column_label'] = latest_activity['ACTIVITY_CREATED_AT'].apply(get_time_bucket)
 
-        # Prepare data for the first download button (full history with labels)
+        # Prepare data for download by merging labels into the filtered raw data
         label_mapping = latest_activity[['CAMPAIGNINVITATIONID', 'Row_label', 'Column_label']]
         data_for_download = pd.merge(
             filtered_tp, label_mapping, on='CAMPAIGNINVITATIONID', how='left'
@@ -158,7 +159,6 @@ if tp is not None:
                mime='text/csv',
             )
         with col2:
-            # New highlighted download button for latest activity only
             st.download_button(
                label="Download Latest Activity per Candidate",
                data=latest_activity.to_csv(index=False).encode('utf-8'),
