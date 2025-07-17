@@ -63,7 +63,8 @@ if tp is not None:
         "Invitation Date Range",
         [default_start_date, max_date],
         min_value=min_date,
-        max_value=max_date
+        max_value=max_date,
+        label_visibility="collapsed"
     )
     st.divider()
 
